@@ -1,0 +1,132 @@
+name: Release (Pindou)
+
+# 触发条件：推送 fabric/v* 或 neoforge/v* 标签
+on:
+  push:
+    tags:
+      - 'fabric/v*'
+      - 'neoforge/v*'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    outputs:
+      platform: ${{ steps.vars.outputs.platform }}
+      version: ${{ steps.vars.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 解析标签，生成平台名和版本号
+      - name: Extract platform and version
+        id: vars
+        run: |
+          TAG="${{ github.ref_name }}"
+          PLATFORM="${TAG%%/*}"
+          VERSION="${TAG#*/}"
+          # 首字母大写
+          PRETTY_PLATFORM="$(tr '[:lower:]' '[:upper:]' <<< ${PLATFORM:0:1})${PLATFORM:1}"
+          echo "platform=${PLATFORM}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "pretty_platform=${PRETTY_PLATFORM}" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew clean build --no-daemon --stacktrace
+
+      # 精确收集主 jar，排除 -javadoc.jar、-sources.jar 等
+      - name: Collect release artifact
+        id: collect
+        run: |
+          PLATFORM="${{ steps.vars.outputs.platform }}"
+          VERSION="${{ steps.vars.outputs.version }}"
+          MC_VER="1.21.1"   # 按你的 minecraft_version 修改
+
+          # 去掉 v 前缀（标签可能是 v1.0.0）
+          VERNUM="${VERSION#v}"
+
+          if [[ "$PLATFORM" == "fabric" ]]; then
+            JAR_DIR="fabric/build/libs"
+            JAR_NAME="pindou-fabric-${MC_VER}-${VERNUM}.jar"
+          elif [[ "$PLATFORM" == "neoforge" ]]; then
+            JAR_DIR="neoforge/build/libs"
+            JAR_NAME="pindou-neoforge-${MC_VER}-${VERNUM}.jar"
+          else
+            echo "Unknown platform: $PLATFORM"
+            exit 1
+          fi
+
+          mkdir release
+          JAR_PATH="${JAR_DIR}/${JAR_NAME}"
+
+          if [ ! -f "$JAR_PATH" ]; then
+            echo "Expected jar not found: $JAR_PATH"
+            echo "Files in ${JAR_DIR}:"
+            ls -la "$JAR_DIR"/*.jar 2>/dev/null || echo "(no jars found)"
+            exit 1
+          fi
+
+          cp "$JAR_PATH" release/
+          echo "Collected: $JAR_NAME"
+
+      # 提取更新日志，兼容 v 前缀有无
+      - name: Extract changelog
+        run: |
+          VERSION="${{ steps.vars.outputs.version }}"
+          VERNUM="${VERSION#v}"
+
+          # 先尝试完整版本号（如 v1.0.0）
+          awk -v ver="## [${VERSION}]" \
+              'BEGIN { found=0 }
+               $0 ~ "^## \\[" && $0 !~ ver { if(found) exit }
+               $0 ~ ver { found=1; next }
+               found { print }' CHANGELOG.md > release_body.md
+
+          # 若未找到，尝试去掉 v 的版本号（如 1.0.0）
+          if [ ! -s release_body.md ]; then
+            awk -v ver="## [${VERNUM}]" \
+                'BEGIN { found=0 }
+                 $0 ~ "^## \\[" && $0 !~ ver { if(found) exit }
+                 $0 ~ ver { found=1; next }
+                 found { print }' CHANGELOG.md > release_body.md
+          fi
+
+          # 仍然没找到时给出友好提示
+          if [ ! -s release_body.md ]; then
+            echo "⚠️ No changelog entry found for version ${VERSION} or ${VERNUM}" > release_body.md
+            echo "" >> release_body.md
+            echo "Please add a section like:" >> release_body.md
+            echo "\`\`\`" >> release_body.md
+            echo "## [${VERSION}] - YYYY-MM-DD" >> release_body.md
+            echo "\`\`\`" >> release_body.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Pindou ${{ steps.vars.outputs.pretty_platform }} ${{ steps.vars.outputs.version }}"
+          body_path: release_body.md
+          draft: false
+          prerelease: false
+          files: release/*.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

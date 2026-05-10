@@ -1,0 +1,33 @@
+{
+    "schemaVersion": 1,
+    "id": "${mod_id}",
+    "version": "${version}",
+    "name": "${mod_name}",
+    "description": "一个导入六款拼豆品牌颜色json的模组，在游戏中生成对应颜色的方块，可以在世界中随意创造像素画或拼豆了，作者哔哩哔哩：春风溢于华夏，https://space.bilibili.com/354332275?spm_id_from=333.1007.0.0",
+    "authors": [
+        "作者哔哩哔哩：春风溢于华夏,Github：XiaoB212"
+    ],
+    "contact": {
+        "homepage": "https://space.bilibili.com/354332275?spm_id_from=333.1007.0.0",
+        "sources": "https://github.com/XiaoB212/XBRGB-Pindou"
+    },
+    "license": "${license}",
+    "icon": "pindou.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": ["com.xbrgb.pindou.FabricPindou"],
+        "client": ["com.xbrgb.pindou.FabricPindou"]
+    },
+    "mixins": [
+
+    ],
+    "depends": {
+        "fabricloader": ">=${fabric_loader_version}",
+        "fabric-api": "*",
+        "minecraft": "${minecraft_version}",
+        "java": ">=${java_version}"
+    },
+    "suggests": {
+        "another-mod": "*"
+    }
+}

@@ -1,0 +1,10 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "Apache License 2.0"
+
+[[mods]]
+modId = "pindou"
+version = "${version}"
+displayName = "Pindou"
+logoFile = "pindou.png"
+description = "一个导入六款拼豆品牌颜色json的模组，在游戏中生成对应颜色的方块，可以在世界中随意创造像素画或拼豆了。"
